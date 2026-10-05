@@ -1,0 +1,154 @@
+<group name="linux,sshd,bruteforce,windows,web,">
+
+    <!-- ========================================== -->
+    <!-- 1. SSH Bruteforce Detection                -->
+    <!-- ========================================== -->
+    
+    <!-- First rule for failed login attempt -->
+    <rule id="100100" level="5">
+        <if_sid>5716</if_sid>
+        <description>SSH: Login attempt went wrong</description>
+        <mitre>
+            <id>T1110</id>
+        </mitre>
+    </rule>
+
+    <!-- Detection of bruteforce -->
+    <rule id="100101" level="10" frequency="8" timeframe="30">
+        <if_matched_sid>100100</if_matched_sid>
+        <same_source_ip />
+        <description>SSH: Bruteforce-attack detected</description>
+        <mitre>
+            <id>T1110.001</id>
+        </mitre>
+        <group>authentication_failed,attacks,</group>
+    </rule>
+
+
+    <!-- ========================================== -->
+    <!-- 2. Privilege Escalation via Sudo           -->
+    <!-- ========================================== -->
+    
+    <rule id="100200" level="9">
+        <if_sid>5402</if_sid>
+        <match>; USER=root ; COMMAND=</match>
+        <regex>\b(bash|sh|zsh|dash|python|perl|ruby|lua|php|nc|netcat|socat|chmod|chown|passwd|visudo|su)\b</regex>
+        <description>Sudo: Execution of a potentially dangerous command as root detected (possible privilege escalation).</description>
+        <mitre>
+            <id>T1548.003</id>
+        </mitre>
+        <group>privilege_escalation,syslog,</group>
+    </rule>
+
+
+    <!-- ========================================== -->
+    <!-- 3. File Integrity Monitoring (FIM)         -->
+    <!-- ========================================== -->
+    
+    <rule id="100300" level="10">
+        <category>syscheck</category>
+        <field name="file">^/etc/passwd$|^/etc/shadow$</field>
+        <description>FIM: Critical system file modification detected (/etc/passwd or /etc/shadow).</description>
+        <mitre>
+            <id>T1565</id>
+        </mitre>
+        <group>syscheck,file_modification,</group>
+    </rule>
+
+
+    <!-- ========================================== -->
+    <!-- 4. User Added to Local Administrators      -->
+    <!-- ========================================== -->
+    
+    <rule id="100400" level="8">
+        <if_sid>60113</if_sid>
+        <field name="win.system.eventID">^4732$</field>
+        <field name="win.eventdata.targetUserName">^Administrators$</field>
+        <description>Windows: User account added to the local Administrators group.</description>
+        <mitre>
+            <id>T1136.001</id>
+        </mitre>
+        <group>windows,group_management,</group>
+    </rule>
+
+
+    <!-- ========================================== -->
+    <!-- 5. Security Log Clearing                   -->
+    <!-- ========================================== -->
+    
+    <rule id="100500" level="11">
+        <if_sid>60108</if_sid>
+        <field name="win.system.eventID">^1102$</field>
+        <description>Windows: The Audit Log was cleared.</description>
+        <mitre>
+            <id>T1070.001</id>
+        </mitre>
+        <group>windows,log_clearing,defense_evasion,</group>
+    </rule>
+
+    <rule id="100501" level="9">
+        <if_sid>5402</if_sid>
+        <match>wevtutil cl </match>
+        <description>Linux/Windows: Attempt to clear event logs via wevtutil command tool.</description>
+        <mitre>
+            <id>T1070.001</id>
+        </mitre>
+        <group>linux,sudo,log_clearing,</group>
+    </rule>
+
+
+    <!-- ========================================== -->
+    <!-- 6. Web Server Attacks (SQLi / Path Traversal) -->
+    <!-- ========================================== -->
+    
+    <rule id="100600" level="10">
+        <if_sid>31100</if_sid>
+        <regex>(?i)UNION\s+SELECT|ORDER\s+BY\s+\d+|SELECT\s+.*\s+FROM</regex>
+        <description>Web: Potential SQL Injection (SQLi) attempt detected in HTTP request.</description>
+        <mitre>
+            <id>T1190</id>
+        </mitre>
+        <group>web,app_attack,sqli,</group>
+    </rule>
+
+    <rule id="100601" level="9">
+        <if_sid>31100</if_sid>
+        <match>../..</match>
+        <description>Web: Potential Path Traversal attempt detected in HTTP request.</description>
+        <mitre>
+            <id>T1190</id>
+        </mitre>
+        <group>web,app_attack,path_traversal,</group>
+    </rule>
+
+
+    <!-- ========================================== -->
+    <!-- 7. Anomalous Outbound Connection (Reverse Shell) -->
+    <!-- ========================================== -->
+    
+    <rule id="100700" level="10">
+        <if_sid>5300</if_sid>
+        <regex>\b(bash|sh|python|perl|nc|netcat|socat)\b.*-i.*&gt;&amp;.*tcp</regex>
+        <description>Linux: Anomalous interactive process execution detected (Possible Reverse Shell activity).</description>
+        <mitre>
+            <id>T1095</id>
+        </mitre>
+        <group>linux,process_creation,network_activity,</group>
+    </rule>
+
+
+    <!-- ========================================== -->
+    <!-- 8. Network Scanners and Utilities Launch   -->
+    <!-- ========================================== -->
+    
+    <rule id="100800" level="8">
+        <if_sid>5402</if_sid>
+        <regex>\b(nmap|nc|netcat|tcpdump|wireshark|tshark|ncat)\b</regex>
+        <description>Linux: Network scanner or packet capture utility executed on production server.</description>
+        <mitre>
+            <id>T1046</id>
+        </mitre>
+        <group>linux,sudo,reconnaissance,</group>
+    </rule>
+
+</group>

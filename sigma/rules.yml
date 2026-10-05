@@ -1,0 +1,202 @@
+title: Encoded PowerShell Command Execution
+id: 5a1b3c4d-1234-5678-abcd-000000000001
+status: stable
+description: Detects execution of PowerShell with encoded command arguments which is often used to conceal malicious scripts.
+author: vasyl.popyk2810@gmail.com
+date: 2026/10/05
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection_img:
+        Image|endswith:
+            - '\powershell.exe'
+            - '\pwsh.exe'
+    selection_args:
+        CommandLine|re: '(?i)\s(-e|-enc|-encodedcommand|-ec)\s'
+    condition: selection_img and selection_args
+falsepositives:
+    - Legitimate administrative scripts or software deployment tools (e.g., SCCM, Chocolatey).
+level: high
+tags:
+    - attack.execution
+    - attack.t1059.001
+
+---
+title: LSASS Memory Dump and Access Attempt
+id: 6b2c4d5e-1234-5678-abcd-000000000002
+status: stable
+description: Detects suspicious access to the LSASS process memory, indicating potential credential dumping attempts using tools like Mimikatz or Taskmgr.
+author: vasyl.popyk2810@gmail.com
+date: 2026/10/05
+logsource:
+    category: process_access
+    product: windows
+detection:
+    selection:
+        TargetImage|endswith: '\lsass.exe'
+        GrantedAccess:
+            - '0x1fffff'
+            - '0x1410'
+            - '0x1010'
+    filter:
+        SourceImage|endswith: '\msmpeng.exe' # Exclude Windows Defender
+    condition: selection and not filter
+falsepositives:
+    - Antivirus scanners or endpoint protection agents.
+level: critical
+tags:
+    - attack.credential_access
+    - attack.t1003.001
+
+---
+title: Suspicious Service Creation for Persistence
+id: 7c3d5e6f-1234-5678-abcd-000000000003
+status: test
+description: Detects the creation of new system services via sc.exe, New-Service, or direct API manipulation to establish persistence.
+author:  vasyl.popyk2810@gmail.com
+date: 2026/10/05
+logsource:
+    product: windows
+    service: security
+detection:
+    selection:
+        EventID:
+            - 4697
+            - 7045
+    filter_legit:
+        ServiceFilename|contains: 'C:\Windows\System32\'
+    condition: selection and not filter_legit
+falsepositives:
+    - Installation of legitimate third-party software or drivers by administrators.
+level: high
+tags:
+    - attack.persistence
+    - attack.privilege_escalation
+    - attack.t1543.003
+
+---
+title: Registry Modification in Auto-Run Keys
+id: 8d4e6f7a-1234-5678-abcd-000000000004
+status: stable
+description: Detects modifications to the Windows registry Run and RunOnce keys, indicating a common persistence mechanism.
+author: vasyl.popyk2810@gmail.com
+date: 2026/10/05
+logsource:
+    category: registry_event
+    product: windows
+detection:
+    selection:
+        TargetObject|contains:
+            - '\Microsoft\Windows\CurrentVersion\Run'
+            - '\Microsoft\Windows\CurrentVersion\RunOnce'
+    condition: selection
+falsepositives:
+    - Newly installed software adding itself to startup during legitimate installations.
+level: medium
+tags:
+    - attack.persistence
+    - attack.t1547.001
+
+---
+title: Process Injection via CreateRemoteThread
+id: 9e5f7a8b-1234-5678-abcd-000000000005
+status: stable
+description: Detects process injection attempts where a source process creates a thread in a remote target process using CreateRemoteThread.
+author: vasyl.popyk2810@gmail.com
+date: 2026/10/05
+logsource:
+    category: create_remote_thread
+    product: windows
+detection:
+    selection:
+        SourceImage|not endswith:
+            - '\csrss.exe'
+            - '\lsass.exe'
+            - '\svchost.exe'
+    condition: selection
+falsepositives:
+    - Debugging sessions by developers or specialized system performance utilities.
+level: high
+tags:
+    - attack.privilege_escalation
+    - attack.defense_evasion
+    - attack.t1055
+
+---
+title: Disabling Windows Defender Real-Time Protection
+id: 0f6a8b9c-1234-5678-abcd-000000000006
+status: stable
+description: Detects attempts to disable Windows Defender features via command line or registry modification, used to evade detection.
+author: vasyl.popyk2810@gmail.com
+date: 2026/10/05
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection_cmd:
+        CommandLine|contains:
+            - 'DisableRealtimeMonitoring'
+            - 'DisableBehaviorMonitoring'
+    selection_reg:
+        CommandLine|contains:
+            - 'Microsoft\Windows Defender\Real-Time Protection'
+    condition: selection_cmd or selection_reg
+falsepositives:
+    - Administrators disabling features for troubleshooting or installing alternative security software.
+level: critical
+tags:
+    - attack.defense_evasion
+    - attack.t1562.001
+
+---
+title: Executable Execution from Temporary Directories
+id: 1a7b9c0d-1234-5678-abcd-000000000007
+status: experimental
+description: Detects binary execution originating from temporary or public directories, a common location for malware deployment.
+author: vasyl.popyk2810@gmail.com
+date: 2026/10/05
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection:
+        Image|contains:
+            - '\AppData\Local\Temp\'
+            - 'C:\Users\Public\'
+        Image|endswith:
+            - '.exe'
+            - '.bat'
+            - '.vbs'
+            - '.ps1'
+    condition: selection
+falsepositives:
+    - Software installers or automatic updates unpacking executables into Temp folder to perform installation.
+level: medium
+tags:
+    - attack.execution
+    - attack.t1204.002
+
+---
+title: Scheduled Task Creation for Persistence
+id: 2b8c0d1e-1234-5678-abcd-000000000008
+status: stable
+description: Detects the creation of new scheduled tasks using schtasks.exe or administrative events, indicating potential persistence tactics.
+author: vasyl.popyk2810@gmail.com
+date: 2026/10/05
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection_cmd:
+        Image|endswith: '\schtasks.exe'
+        CommandLine|contains: '/create'
+    selection_event:
+        EventID: 4698
+    condition: selection_cmd or selection_event
+falsepositives:
+    - Legitimate software installers creating tasks for system background updates (e.g., Google Update).
+level: medium
+tags:
+    - attack.persistence
+    - attack.t1053
